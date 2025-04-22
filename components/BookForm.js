@@ -6,6 +6,8 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [selectedSuggestion, setSelectedSuggestion] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [confirmationMsg, setConfirmationMsg] = useState('')
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
@@ -17,9 +19,7 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
       const fetchSuggestions = async () => {
         try {
           const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY
-          const res = await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&key=${apiKey}`
-          )
+          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&key=${apiKey}`)
           const data = await res.json()
 
           const seen = new Set()
@@ -54,63 +54,100 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!title || !comment) return
+    const newErrors = {}
+
+    if (!title) newErrors.title = 'Book title is required.'
+    if (!comment || comment.trim().length < 10 || /^(asdf|test|123|\.\.\.)$/i.test(comment.trim())) {
+      newErrors.comment = 'Please write a more helpful reason.'
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
 
     setLoading(true)
+    setErrors({})
 
     let thumbnail = ''
     let buyLinks = []
     let ageGroup = ''
+    let isKidBook = false
 
     try {
       const encodedTitle = encodeURIComponent(title)
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY
-      const googleRes = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodedTitle}&key=${apiKey}`
-      )
-
-      if (!googleRes.ok) throw new Error('Google API fetch failed')
+      const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodedTitle}&key=${apiKey}`)
+      if (!googleRes.ok) throw new Error('Google API failed')
 
       const googleData = await googleRes.json()
       const bookInfo = googleData.items?.[0]?.volumeInfo
       const saleInfo = googleData.items?.[0]?.saleInfo
 
-      if (bookInfo) {
-        thumbnail = bookInfo.imageLinks?.thumbnail || ''
-
-        if (bookInfo.categories) {
-          const category = bookInfo.categories.find(cat =>
-            /baby|toddler|preschool|age|children|kids/i.test(cat)
-          )
-          if (category) ageGroup = category
-        }
-
-        if (!ageGroup && bookInfo.description) {
-          const desc = bookInfo.description.toLowerCase()
-          if (desc.includes('ages 2') || desc.includes('toddlers')) ageGroup = '2–3'
-          else if (desc.includes('ages 3') || desc.includes('preschool')) ageGroup = '3–4'
-          else if (desc.includes('ages 4') || desc.includes('kindergarten')) ageGroup = '4–5'
-          else if (desc.includes('ages 5') || desc.includes('early readers')) ageGroup = '5–6'
-        }
-
-        if (!ageGroup) ageGroup = '2–6'
-
-        const amazon = saleInfo?.buyLink
-        if (amazon) buyLinks.push({ name: 'Amazon', url: amazon })
+      if (!bookInfo || !bookInfo.title || !bookInfo.imageLinks?.thumbnail) {
+        setErrors({ title: `❌ The book "${title}" could not be verified. Please check the spelling or try a different title.` })
+        setLoading(false)
+        return
       }
+
+      thumbnail = bookInfo.imageLinks.thumbnail
+      ageGroup = bookInfo.categories?.[0] || ''
+
+      // 🌟 Normalize vague categories
+      if (!ageGroup || /juvenile|fiction|literature/i.test(ageGroup)) {
+        ageGroup = '2–6'
+      }
+
+      // 🔍 Smarter child book detection
+      const kidKeywords = [
+        'children', 'kids', 'child', 'toddler', 'preschool', 'early reader',
+        'ages', 'board book', 'read aloud', 'alphabet', 'picture book',
+        'nursery', 'baby', 'young reader', 'rhyming', 'storybook',
+        'juvenile fiction', 'juvenile literature'
+      ]
+
+      const isLikelyKidBook = (text) =>
+        text && kidKeywords.some(k => text.toLowerCase().includes(k))
+
+      isKidBook =
+        (bookInfo.categories && bookInfo.categories.some(isLikelyKidBook)) ||
+        isLikelyKidBook(bookInfo.title) ||
+        isLikelyKidBook(bookInfo.subtitle) ||
+        isLikelyKidBook(bookInfo.description)
+
+      // ✅ Final fallback: pattern-based age detection
+      if (!isKidBook && /[2–7]/.test(ageGroup)) {
+        isKidBook = true
+      }
+
+      const amazon = saleInfo?.buyLink
+      if (amazon) buyLinks.push({ name: 'Amazon', url: amazon })
+
+      console.log('📘 Final Category:', isKidBook ? 'Kids' : 'Other')
+      console.log('📗 Age Group:', ageGroup)
+      console.log('🧠 DEBUG — isKidBook:', isKidBook)
+      console.log('📕 Categories:', bookInfo.categories)
+      console.log('📙 Title:', bookInfo.title)
+      console.log('📗 Subtitle:', bookInfo.subtitle)
+      console.log('📘 Description:', bookInfo.description)
+
     } catch (err) {
-      console.warn('Google Books API failed:', err)
-      thumbnail = ''
-      buyLinks = []
-      ageGroup = '2–6'
+      console.error('Google API failed:', err)
+      setErrors({ title: 'Could not fetch book details. Please try again.' })
+      setLoading(false)
+      return
     }
 
-    // Ensure buyLinks is safe
-    if (!Array.isArray(buyLinks)) {
-      buyLinks = []
-    }
+    console.log('🚀 Submitting to Supabase:', {
+      title, comment, ageGroup, thumbnail, buyLinks, isKidBook
+    })
 
-    await onAddBook(title, comment, ageGroup, thumbnail, buyLinks)
+    await onAddBook(title, comment, ageGroup, thumbnail, buyLinks, isKidBook)
+
+    const tab = isKidBook ? 'Kids Books 📚' : 'Other Books 📖'
+    setConfirmationMsg(`Your book was added in the ${tab}`)
+    setTimeout(() => setConfirmationMsg(''), 2500)
+
     setTitle('')
     setComment('')
     setSuggestions([])
@@ -131,11 +168,12 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
           setSelectedSuggestion(false)
         }}
         placeholder="Enter the book title"
-        className="w-full border border-gray-300 rounded px-3 py-3 mb-1 text-sm"
+        className="w-full border border-gray-300 rounded px-3 py-3 text-sm mb-1"
       />
+      {errors.title && <p className="text-red-600 text-xs mb-2">{errors.title}</p>}
 
       {suggestions.length > 0 && !selectedSuggestion && (
-        <ul className="absolute z-10 bg-white border border-gray-300 rounded shadow max-h-48 overflow-auto w-full mt-1 mb-3 text-sm">
+        <ul className="absolute z-10 bg-white border border-gray-300 rounded shadow max-h-48 overflow-auto w-full mt-1 mb-2 text-sm">
           {suggestions.map((s, idx) => (
             <li
               key={idx}
@@ -148,13 +186,14 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
         </ul>
       )}
 
-      <label className="text-sm font-medium text-gray-700 block mt-3 mb-1">Why is it your favorite?</label>
+      <label className="text-sm font-medium text-gray-700 block mt-2 mb-1">Why is it your favorite?</label>
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Tell us why your child loves it!"
-        className="w-full border border-gray-300 rounded px-3 py-3 mb-4 text-sm resize-none min-h-[120px]"
+        className="w-full border border-gray-300 rounded px-3 py-3 text-sm resize-none min-h-[120px]"
       />
+      {errors.comment && <p className="text-red-600 text-xs mb-3">{errors.comment}</p>}
 
       <button
         type="submit"
@@ -163,6 +202,10 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
       >
         {loading ? 'Sharing...' : 'Share Book'}
       </button>
+
+      {confirmationMsg && (
+        <p className="text-sm text-green-600 mt-2 text-center">{confirmationMsg}</p>
+      )}
     </form>
   )
 }

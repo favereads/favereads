@@ -13,11 +13,27 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [prefillTitle, setPrefillTitle] = useState('')
   const [activeTab, setActiveTab] = useState('Kids')
-  const [ageFilter, setAgeFilter] = useState('All')
-  const [kidsBadgeCount, setKidsBadgeCount] = useState(0)
-  const [otherBadgeCount, setOtherBadgeCount] = useState(0)
 
-  const MOCK_BOOKS = [/* your mock books here */]
+  const MOCK_BOOKS = [
+    {
+      title: 'The Gruffalo',
+      comment: 'Our kids love the rhythm and the silly monster!',
+      favorites: 4,
+      ageGroup: '3–5',
+      thumbnail: '/default-cover.jpg',
+      buyLinks: [],
+      category: 'Kids'
+    },
+    {
+      title: 'Chicka Chicka Boom Boom',
+      comment: 'Fun to chant and memorize. Great alphabet exposure!',
+      favorites: 2,
+      ageGroup: '2–4',
+      thumbnail: '/default-cover.jpg',
+      buyLinks: [],
+      category: 'Kids'
+    }
+  ]
 
   const normalizeBooks = (supabaseBooks) => {
     return supabaseBooks.map(b => ({
@@ -32,9 +48,11 @@ export default function Home() {
   useEffect(() => {
     async function loadBooks() {
       if (IS_MOCK) {
+        console.log('🧪 MOCK MODE — Showing local mock books')
         setBooks(MOCK_BOOKS)
         return
       }
+
       const res = await fetch('/api/books')
       const data = await res.json()
       setBooks(normalizeBooks(data.books || []))
@@ -44,13 +62,16 @@ export default function Home() {
 
   const handleAddBook = async (title, comment, ageGroup, thumbnail, buyLinks, isKidBook = true) => {
     const category = isKidBook ? 'Kids' : 'Other'
-    if (IS_MOCK) return
+    if (IS_MOCK) {
+      console.log('🧪 MOCK MODE — handleAddBook:', title)
+      return
+    }
 
     try {
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, comment, ageGroup, thumbnail, buyLinks, category })
+        body: JSON.stringify({ title, comment, ageGroup, thumbnail, buyLinks, isKidBook })
       })
       const data = await res.json()
       if (!data.book) return alert('Something went wrong')
@@ -76,25 +97,11 @@ export default function Home() {
               : b
           )
         }
-
-        if (submittedBook.category !== activeTab) {
-          submittedBook.category === 'Kids'
-            ? setKidsBadgeCount(prev => prev + 1)
-            : setOtherBadgeCount(prev => prev + 1)
-        }
-
         return [{ ...submittedBook, favorites: 1, comments: [submittedBook.comment] }, ...prev]
       })
     } catch (err) {
       console.error('Add book error:', err)
     }
-  }
-
-  const handleTabClick = (tab) => {
-    setActiveTab(tab)
-    setAgeFilter('All')
-    if (tab === 'Kids') setKidsBadgeCount(0)
-    if (tab === 'Other') setOtherBadgeCount(0)
   }
 
   const handleLike = (title) => {
@@ -119,14 +126,7 @@ export default function Home() {
     )
   }
 
-  const ageGroupsForTab = Array.from(
-    new Set(books.filter(b => b.category === activeTab).map(b => b.ageGroup))
-  ).sort()
-
-  const filteredBooks = books.filter(b =>
-    b.category === activeTab && (ageFilter === 'All' || b.ageGroup === ageFilter)
-  )
-
+  const filteredBooks = books.filter(b => b.category === activeTab)
   const totalPages = Math.ceil(filteredBooks.length / ITEMS_PER_PAGE)
   const displayedBooks = filteredBooks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
@@ -154,43 +154,16 @@ export default function Home() {
 
       <main className="max-w-[1280px] mx-auto px-1 mt-8 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6 items-start">
         <section className="w-full">
-          <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+          <div className="flex justify-between items-center mb-3">
             <div className="flex space-x-4">
-              {['Kids', 'Other'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => handleTabClick(tab)}
-                  className={`relative text-sm font-semibold ${
-                    activeTab === tab ? 'text-blue-600 underline' : 'text-gray-600'
-                  }`}
-                >
-                  {tab === 'Kids' ? '📚 Kids Books' : '📖 Other Books'}
-                  {(tab === 'Kids' && kidsBadgeCount > 0) && (
-                    <span className="absolute -top-2 -right-4 bg-blue-600 text-white rounded-full px-1.5 text-xs">
-                      {kidsBadgeCount}
-                    </span>
-                  )}
-                  {(tab === 'Other' && otherBadgeCount > 0) && (
-                    <span className="absolute -top-2 -right-4 bg-blue-600 text-white rounded-full px-1.5 text-xs">
-                      {otherBadgeCount}
-                    </span>
-                  )}
-                </button>
-              ))}
+              <button onClick={() => setActiveTab('Kids')} className={`text-sm font-semibold ${activeTab === 'Kids' ? 'text-blue-600 underline' : 'text-gray-600'}`}>
+                📚 Kids Books
+              </button>
+              <button onClick={() => setActiveTab('Other')} className={`text-sm font-semibold ${activeTab === 'Other' ? 'text-blue-600 underline' : 'text-gray-600'}`}>
+                📖 Other Books
+              </button>
             </div>
-
-            <div className="flex items-center space-x-2">
-              <select
-                value={ageFilter}
-                onChange={(e) => setAgeFilter(e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1"
-              >
-                <option value="All">All Ages</option>
-                {ageGroupsForTab.map((age, idx) => (
-                  <option key={idx} value={age}>{age}</option>
-                ))}
-              </select>
-
+            <div className="flex space-x-2">
               <button onClick={() => setView('list')} className={`p-2 border rounded ${view === 'list' ? 'bg-blue-600 text-white' : 'text-blue-600'}`}>
                 <LayoutList size={18} />
               </button>

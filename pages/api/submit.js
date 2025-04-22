@@ -3,22 +3,30 @@
 import { supabase } from '../../lib/supabase'
 
 export default async function handler(req, res) {
-  console.log('📦 API: /api/submit called')
-  console.log('🧪 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
-  console.log('🧪 Supabase KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + '...')
-  console.log('📘 Incoming Book:', req.body)
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST allowed' })
   }
 
-  const { title, comment, thumbnail, ageGroup, buyLinks } = req.body
+  const { title, comment, thumbnail, ageGroup, buyLinks, isKidBook } = req.body
+  const category = isKidBook ? 'Kids' : 'Other'
+  const safeBuyLinks = Array.isArray(buyLinks) ? buyLinks : []
+
+  console.log('📦 API: /api/submit called')
+  console.log('🧪 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+  console.log('🧪 Supabase KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + '...')
+  console.log('📘 Incoming Book:', {
+    title,
+    comment,
+    ageGroup,
+    thumbnail,
+    buyLinks: safeBuyLinks,
+    category,
+    isKidBook
+  })
 
   if (!title || !comment) {
     return res.status(400).json({ error: 'Missing title or comment' })
   }
-
-  const safeBuyLinks = Array.isArray(buyLinks) ? buyLinks : []
 
   const { data, error } = await supabase
     .from('books')
@@ -31,6 +39,7 @@ export default async function handler(req, res) {
         thumbnail,
         age_group: ageGroup,
         buy_links: safeBuyLinks,
+        category,
       },
       { onConflict: 'title' }
     )
