@@ -7,13 +7,9 @@ export default function BookCard({ book, onLike, view, onAddReason }) {
 
   const comments = Array.isArray(book.comments) ? book.comments : [book.comment].filter(Boolean)
   const mainComment = comments[0]
-  const extraComments = comments.length > 1 ? comments.slice(1) : []
-
-  const showPlus =
-    comments.length > 1 || (comments.length === 1 && mainComment && mainComment.length > 100)
+  const showPlus = comments.length > 1 || (comments.length === 1 && mainComment && mainComment.length > 100)
 
   const handleLikeClick = () => setShowReasonFormModal(true)
-
   const handleSkip = () => {
     onLike(book.title)
     setShowReasonFormModal(false)
@@ -49,51 +45,49 @@ export default function BookCard({ book, onLike, view, onAddReason }) {
     ))
 
   return (
-    <>
-      <div className="bg-white border border-gray-300 rounded shadow px-4 py-3 flex items-start space-x-4 w-full max-w-5xl min-h-[100px]">
-        <a href={amazonLink} target="_blank" rel="noopener noreferrer">
-          <img
-            src={book.thumbnail || '/default-cover.jpg'}
-            alt={book.title}
-            className="w-12 h-16 object-cover rounded border"
-          />
-        </a>
+    <div className={`bg-white border border-gray-300 rounded shadow p-4 ${view === 'tile' ? 'flex flex-col justify-start min-h-[220px]' : 'flex items-start space-x-4 w-full max-w-5xl min-h-[100px]'}`}>
+      <a href={amazonLink} target="_blank" rel="noopener noreferrer">
+        <img
+          src={book.thumbnail || '/default-cover.jpg'}
+          alt={book.title}
+          className="w-12 h-16 object-cover rounded border"
+        />
+      </a>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-start">
-            <h2 className="text-base font-bold">
-              {book.title}{' '}
-              <span className="text-sm text-gray-500 font-normal">(Age: {book.ageGroup})</span>
-            </h2>
+      <div className={`${view === 'tile' ? 'mt-2' : 'flex-1 min-w-0'}`}>
+        <div className="flex justify-between items-start">
+          <h2 className="text-base font-bold">
+            {book.title}{' '}
+            <span className="text-sm text-gray-500 font-normal">(Age: {book.ageGroup})</span>
+          </h2>
+          <button
+            onClick={handleLikeClick}
+            className="text-pink-600 text-sm flex items-center space-x-1 hover:opacity-75"
+          >
+            ❤️ <span>{book.favorites || 1}</span>
+          </button>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <div
+            className="text-sm italic text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap truncate w-[840px] max-w-full"
+            title={mainComment}
+          >
+            “{mainComment}”
+          </div>
+          {showPlus && (
             <button
-              onClick={handleLikeClick}
-              className="text-pink-600 text-sm flex items-center space-x-1 hover:opacity-75"
+              onClick={() => setShowCommentsModal(true)}
+              title="See why parents love this book"
+              className="ml-2 text-blue-600 font-bold text-sm hover:underline"
             >
-              ❤️ <span>{book.favorites || 1}</span>
+              +
             </button>
-          </div>
+          )}
+        </div>
 
-          <div className="flex justify-between items-center">
-            <div
-              className="text-sm italic text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap truncate max-w-[90%]"
-              title={mainComment}
-            >
-              “{mainComment}”
-            </div>
-            {showPlus && (
-              <button
-                onClick={() => setShowCommentsModal(true)}
-                title="See why parents love this book"
-                className="ml-2 text-blue-600 font-bold text-sm hover:underline"
-              >
-                +
-              </button>
-            )}
-          </div>
-
-          <div className="mt-2">
-            <BuyLinks />
-          </div>
+        <div className="mt-2">
+          <BuyLinks />
         </div>
       </div>
 
@@ -124,7 +118,7 @@ export default function BookCard({ book, onLike, view, onAddReason }) {
           </ul>
         </Modal>
       )}
-    </>
+    </div>
   )
 }
 
