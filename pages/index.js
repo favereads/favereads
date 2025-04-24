@@ -161,9 +161,13 @@ export default function Home() {
     )
   }
 
-  const ageGroupsForTab = Array.from(new Set(
-    books.filter(b => b.category === activeTab).map(b => b.ageGroup)
-  ))
+const ageGroupOrder = ['2–3', '3–4', '4–5', '5–6', '6–7', '6+', '7–8', '12+']
+const ageGroupsForTab = Array.from(new Set(
+  books.filter(b => b.category === activeTab).map(b => b.ageGroup)
+))
+  .filter(Boolean)
+  .sort((a, b) => ageGroupOrder.indexOf(a) - ageGroupOrder.indexOf(b))
+
 
   const filteredBooks = books.filter(b =>
     b.category === activeTab && (ageFilter === 'All' || b.ageGroup === ageFilter)

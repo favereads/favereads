@@ -1,5 +1,3 @@
-// Regenerating BookForm.js with multi-source ageGroup detection and normalized mapping
-
 import { useState, useEffect } from 'react'
 
 export default function BookForm({ onAddBook, prefillTitle = '' }) {
@@ -85,6 +83,7 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
     let buyLinks = []
     let ageGroup = ''
     let isKidBook = false
+    let description = ''
 
     try {
       const encodedTitle = encodeURIComponent(title)
@@ -102,10 +101,22 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
         return
       }
 
+      description = bookInfo.description || ''
       const categoryText = (bookInfo.categories?.join(' ') || '').toLowerCase()
-      const textSources = `${bookInfo.description || ''} ${comment}`.toLowerCase()
+      const textSources = `${description} ${comment}`.toLowerCase()
 
-      if (categoryText.includes('nursery') || /toddler/.test(textSources)) {
+      // Enhanced logic for age group detection
+      if (/level\s*1/.test(textSources)) {
+        ageGroup = '3–4'
+      } else if (/level\s*2/.test(textSources)) {
+        ageGroup = '4–5'
+      } else if (/level\s*3/.test(textSources)) {
+        ageGroup = '5–6'
+      } else if (/level\s*4/.test(textSources)) {
+        ageGroup = '6–7'
+      } else if (/level\s*5/.test(textSources)) {
+        ageGroup = '7–8'
+      } else if (categoryText.includes('nursery') || /toddler/.test(textSources)) {
         ageGroup = '2–3'
       } else if (categoryText.includes('phonics') || categoryText.includes('early reader') || /ages? ?4|ages? ?5/.test(textSources)) {
         ageGroup = '4–5'
@@ -115,10 +126,9 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
         ageGroup = '12+'
         isKidBook = false
       } else {
-        ageGroup = '2–3' // default fallback
+        ageGroup = '2–3' // fallback
       }
 
-      // Classify as kids book if ageGroup clearly implies young age
       if (!isKidBook && /2|3|4|5|6/.test(ageGroup)) {
         isKidBook = true
       }
@@ -133,12 +143,20 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
       setLoading(false)
       return
     }
+
     console.log('Submitting book with isKidBook =', isKidBook)
 
+    await onAddBook(title, comment, ageGroup, thumbnail, buyLinks, isKidBook, description)
 
-    await onAddBook(title, comment, ageGroup, thumbnail, buyLinks, isKidBook)
-
-    console.log('[BookForm] onAddBook params:', { title, comment, ageGroup, thumbnail, buyLinks, isKidBook })
+    console.log('[BookForm] onAddBook params:', {
+      title,
+      comment,
+      ageGroup,
+      thumbnail,
+      buyLinks,
+      isKidBook,
+      description,
+    })
 
     const tab = isKidBook ? 'Kids Books 📚' : 'Other Books 📖'
     setConfirmationMsg(`Your book was added in the ${tab}`)
@@ -150,11 +168,12 @@ export default function BookForm({ onAddBook, prefillTitle = '' }) {
     setSelectedSuggestion(false)
     setLoading(false)
   }
-    const handleSuggestionClick = (suggestedTitle) => {
-        setTitle(suggestedTitle)
-        setSuggestions([])
-        setSelectedSuggestion(true)
-      }
+
+  const handleSuggestionClick = (suggestedTitle) => {
+    setTitle(suggestedTitle)
+    setSuggestions([])
+    setSelectedSuggestion(true)
+  }
 
   return (
     <form onSubmit={handleSubmit} className="bg-white p-4 border border-gray-300 rounded shadow w-full relative">
